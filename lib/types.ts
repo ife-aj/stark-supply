@@ -1,0 +1,1 @@
+export type Order={id:string;request_id:string;reference:string;customer_name:string;phone:string;address:string;city:string;state:string;email:string;subtotal:number;total:number;delivery_fee:number;email_status:string;created_at:string;items:{name:string;image:string;price:number;quantity:number}[]};

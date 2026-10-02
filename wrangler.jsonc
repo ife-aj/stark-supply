@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stark-supply",
+  "main": "./worker.ts",
+  "compatibility_date": "2026-10-02",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "./dist/client"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "SUPABASE_URL": "https://hzxhjpuxrvcdzwpjonok.supabase.co",
+    "SUPABASE_ANON_KEY": "sb_publishable_VNXecpy2WIDumQof3rROWg_rrs8pbKO",
+    "MAILGUN_DOMAIN": "sandboxc90a516a02ae4019a289480ba66af08a.mailgun.org",
+    "MAILGUN_REGION": "US",
+    "MAILGUN_FROM": "Stark Supply <orders@sandboxc90a516a02ae4019a289480ba66af08a.mailgun.org>"
+  }
+}
