@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "./network";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -348,16 +349,19 @@ function Store() {
       if (!requestId.current) requestId.current = Crypto.randomUUID();
       // The server still verifies this bearer token with Supabase. Native fetch can
       // set Origin to the shop origin; browser requests retain the existing guard.
-      const response = await fetch(SHOP_URL + "/api/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Origin: SHOP_URL,
-          Authorization: "Bearer " + data.session.access_token,
+      const response = await fetchWithTimeout(
+        SHOP_URL + "/api/checkout",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: SHOP_URL,
+            Authorization: "Bearer " + data.session.access_token,
+          },
+          body: JSON.stringify({ ...details, requestId: requestId.current }),
         },
-        body: JSON.stringify({ ...details, requestId: requestId.current }),
-        signal: AbortSignal.timeout(30000),
-      });
+        30000,
+      );
       const result = await response.json();
       if (!response.ok)
         throw new Error(

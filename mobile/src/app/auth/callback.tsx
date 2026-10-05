@@ -9,6 +9,7 @@ export default function Callback() {
     code?: string;
     error?: string;
     error_description?: string;
+    sb_flow_id?: string;
   }>();
   const [error, setError] = useState("");
   useEffect(() => {
@@ -22,7 +23,12 @@ export default function Callback() {
         const { client } = await connectShop();
         await finishLogin(
           client,
-          CALLBACK_URL + "?code=" + encodeURIComponent(params.code),
+          CALLBACK_URL +
+            "?code=" +
+            encodeURIComponent(params.code) +
+            (params.sb_flow_id
+              ? "&sb_flow_id=" + encodeURIComponent(params.sb_flow_id)
+              : ""),
         );
         if (alive) router.replace("/");
       } catch (e) {
@@ -32,7 +38,7 @@ export default function Callback() {
     return () => {
       alive = false;
     };
-  }, [params.code, params.error, params.error_description]);
+  }, [params.code, params.error, params.error_description, params.sb_flow_id]);
   return (
     <View
       style={{

@@ -1,3 +1,5 @@
+import "./crypto";
+import { fetchWithTimeout } from "./network";
 import "react-native-url-polyfill/auto";
 import * as SecureStore from "expo-secure-store";
 import {
@@ -8,7 +10,7 @@ import {
 import { SHOP_URL, type Product } from "./config";
 
 // SecureStore entries can have size limits. Chunk long sessions and write the
-// manifest last; clean both old chunks and interrupted writes on the next save.
+// manifest last; remove obsolete chunks after a successful save.
 const CHUNK_SIZE = 1500;
 const storage = {
   async getItem(key: string) {
@@ -51,8 +53,8 @@ export async function connectShop(): Promise<{
   products: Product[];
 }> {
   const [configuration, listing] = await Promise.all([
-    fetch(SHOP_URL + "/api/config", { signal: AbortSignal.timeout(15000) }),
-    fetch(SHOP_URL + "/api/products", { signal: AbortSignal.timeout(15000) }),
+    fetchWithTimeout(SHOP_URL + "/api/config"),
+    fetchWithTimeout(SHOP_URL + "/api/products"),
   ]);
   if (!configuration.ok || !listing.ok)
     throw new Error("The shop is unavailable. Please try again.");

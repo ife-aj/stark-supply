@@ -9,11 +9,17 @@ WebBrowser.maybeCompleteAuthSession();
 const exchanging = new Map<string, Promise<void>>();
 export async function finishLogin(client: SupabaseClient, url: string) {
   const code = callbackCode(url);
+  const flowId = code
+    ? new URL(url).searchParams.get("sb_flow_id") || undefined
+    : undefined;
   if (!code) return;
   // Android Linking and openAuthSessionAsync may deliver the same callback.
   if (!exchanging.has(code)) {
     const promise = (async () => {
-      const { error } = await client.auth.exchangeCodeForSession(code);
+      const { error } = await client.auth.exchangeCodeForSession(
+        code,
+        flowId ? { flowId } : undefined,
+      );
       if (error) throw error;
     })();
     exchanging.set(code, promise);

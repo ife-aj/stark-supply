@@ -30,3 +30,17 @@ test('OAuth accepts only our callback route and reports provider errors', () => 
  assert.equal(callbackCode('starksupply://auth/callback'), null);
  assert.throws(()=>callbackCode('starksupply://auth/callback?error_description=Access%20denied'),/Access denied/);
 });
+
+test('network timeout works with the native-style AbortController API', async () => {
+ const { fetchWithTimeout } = await import('../src/network.ts');
+ const originalFetch = globalThis.fetch;
+ let signal;
+ globalThis.fetch = async (_url, options) => {
+  signal = options.signal;
+  return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
+ };
+ try {
+  await assert.rejects(fetchWithTimeout('https://shop.invalid/api/config', {}, 5), /connection timed out/);
+  assert.equal(signal.aborted, true);
+ } finally { globalThis.fetch = originalFetch; }
+});
