@@ -1,0 +1,43 @@
+name: Mobile Android APK
+on:
+  pull_request:
+    paths: ['mobile/**', 'shared/**', '.github/workflows/mobile-android.yml']
+  push:
+    branches: [main]
+    paths: ['mobile/**', 'shared/**', '.github/workflows/mobile-android.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npx expo prebuild --platform android --no-install
+      # Expo's generated release variant uses its demo/debug signing key.
+      # This is an installable task-demo APK, not a Play Store release.
+      - run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+        working-directory: mobile/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stark-supply-android-apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 7
