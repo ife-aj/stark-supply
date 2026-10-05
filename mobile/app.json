@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Stark Supply",
+    "slug": "stark-supply-mobile",
+    "scheme": "starksupply",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.ifeaj.starksupply",
+      "versionCode": 1
+    },
+    "ios": {
+      "bundleIdentifier": "com.ifeaj.starksupply",
+      "supportsTablet": true
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-router",
+      "expo-font"
+    ],
+    "icon": "./assets/icon.png"
+  }
+}

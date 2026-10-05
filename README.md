@@ -72,3 +72,10 @@ Order creation, item snapshots and cart deletion share a Postgres transaction. C
 - `lib/catalog.ts`: preview products and shipping display rules (database computes authoritative totals).
 
 Product images are demo assets retrieved from PNGkit (Beats Mixr), Keychron (V2), Walmart (onn mouse) and Treoo (JBL Flip). Replace them with your shop's licensed photography before commercial use. Demo prices are illustrative.
+
+## Mobile app (Lesson 3)
+
+The Expo Android/iOS source lives in `mobile/`. See [mobile/README.md](mobile/README.md)
+for the existing-project Supabase migration, mobile Google redirect, APK build,
+and physical-phone cart-sync test. The website now subscribes to the same private
+cart-change signals as the mobile app.

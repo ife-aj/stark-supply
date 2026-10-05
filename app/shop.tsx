@@ -5,6 +5,7 @@ import { ShoppingBag,Plus,Minus,X,Check,Headphones,Keyboard,Package,ShieldCheck,
 import { catalog,money,delivery,type Product } from '@/lib/catalog';
 type Item={product_id:string;quantity:number};
 import type { Order } from '@/lib/types';
+import { createRefreshQueue } from '@/shared/cart-sync';
 export default function Shop({view:initialView}:{view:'shop'|'checkout'|'orders'}){
  const [view,setView]=useState(initialView);
  const [products,setProducts]=useState<Product[]>(catalog),[cart,setCart]=useState<Item[]>([]),[client,setClient]=useState<SupabaseClient|null>(null),[session,setSession]=useState<Session|null>(null),[ready,setReady]=useState(false),[preview,setPreview]=useState(true),[checkoutReady,setCheckoutReady]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[drawer,setDrawer]=useState(false),[category,setCategory]=useState('All essentials'),[busy,setBusy]=useState(false),[orders,setOrders]=useState<Order[]>([]),[confirmed,setConfirmed]=useState<Order|null>(null);
@@ -14,14 +15,31 @@ export default function Shop({view:initialView}:{view:'shop'|'checkout'|'orders'
  async function loadCart(c:SupabaseClient,id:string){const {data,error}=await c.from('cart_items').select('product_id,quantity').eq('user_id',id);if(error)throw new Error('Your bag could not be loaded. Please try again.');setCart(data||[]);}
  useEffect(()=>{let alive=true,c:SupabaseClient|null=null,unsubscribe:(()=>void)|undefined;
   (async()=>{try{const [conf,listing]=await Promise.all([fetch('/api/config').then(async r=>await r.json() as {url:string;key:string;configured:boolean;checkoutReady:boolean}),fetch('/api/products').then(async r=>await r.json() as {products:Product[];error?:string})]);if(!alive)return;if(listing.error)throw new Error(listing.error);setProducts(listing.products);setPreview(!conf.configured);setCheckoutReady(conf.checkoutReady);
-   if(conf.configured){c=createClient(conf.url,conf.key,{auth:{flowType:'pkce',detectSessionInUrl:true}});setClient(c);const {data,error}=await c.auth.getSession();if(error)throw error;let s=data.session;if(!s){const result=await c.auth.signInAnonymously();if(result.error)throw new Error('Shopping is temporarily unavailable. Please try again later.');s=result.data.session;}if(!alive)return;setSession(s);if(s){lastUser.current=s.user.id;await loadCart(c,s.user.id);setForm(f=>({...f,name:s?.user.user_metadata.full_name||'',}));}
+   if(conf.configured){c=createClient(conf.url,conf.key,{auth:{flowType:'pkce',detectSessionInUrl:true}});setClient(c);const {data,error}=await c.auth.getSession();if(error)throw error;let s=data.session;if(!s){const result=await c.auth.signInAnonymously();if(result.error)throw new Error('Shopping is temporarily unavailable. Please try again later.');s=result.data.session;}if(!alive)return;setSession(s);if(s){lastUser.current=s.user.id;if(!s.user.is_anonymous){const pending=sessionStorage.getItem('stark-pending-cart');if(pending){const items=JSON.parse(pending) as Item[];const {data:existing,error:readError}=await c.from('cart_items').select('product_id,quantity').eq('user_id',s.user.id);if(readError)throw readError;const merged=items.filter(i=>listing.products.some(p=>p.id===i.product_id)&&Number.isInteger(i.quantity)&&i.quantity>0&&i.quantity<=20).map(i=>({user_id:s!.user.id,product_id:i.product_id,quantity:Math.max(i.quantity,existing?.find(e=>e.product_id===i.product_id)?.quantity||0)}));if(merged.length){const {error:mergeError}=await c.from('cart_items').upsert(merged,{onConflict:'user_id,product_id'});if(mergeError)throw mergeError;}sessionStorage.removeItem('stark-pending-cart');}}await loadCart(c,s.user.id);setForm(f=>({...f,name:s?.user.user_metadata.full_name||'',}));}
     const subscription=c.auth.onAuthStateChange((_event,s)=>{if(alive){setSession(s);if(s&&lastUser.current!==s.user.id){lastUser.current=s.user.id;setTimeout(()=>{if(c&&s)loadCart(c,s.user.id).catch(e=>setError(e.message));},0);}}});unsubscribe=()=>subscription.data.subscription.unsubscribe();}
   }catch(e){if(alive)setError(e instanceof Error?e.message:'Could not connect to the shop.');}finally{if(alive)setReady(true);}})();return()=>{alive=false;unsubscribe?.();};
  },[]);
+ // Both clients refetch the same RLS-protected cart when its version changes.
+ useEffect(()=>{
+  if(!client||!user?.id)return;
+  const id=user.id;
+  setCart([]);
+  const queue=createRefreshQueue(async()=>{
+   const {data,error}=await client.from('cart_items').select('product_id,quantity').eq('user_id',id);
+   if(error)throw error;return data||[];
+  },setCart,()=>setError('Your bag could not be refreshed. Check your connection.'));
+  const channel=client.channel(`web-cart:${id}`).on('postgres_changes',{
+   event:'*',schema:'public',table:'cart_versions',filter:`user_id=eq.${id}`
+  },()=>{void queue.refresh();}).subscribe(status=>{if(status==='SUBSCRIBED')void queue.refresh();});
+  const resume=()=>{if(document.visibilityState==='visible')void queue.refresh();};
+  document.addEventListener('visibilitychange',resume);window.addEventListener('online',resume);
+  void queue.refresh();
+  return()=>{queue.dispose();void client.removeChannel(channel);document.removeEventListener('visibilitychange',resume);window.removeEventListener('online',resume);};
+ },[client,user?.id]);
  useEffect(()=>{if(!client||!signedIn||view!=='orders')return;client.from('orders').select('*,items:order_items(*)').order('created_at',{ascending:false}).then(({data,error})=>{if(error)setError('Orders could not be loaded.');else setOrders(data as Order[]||[]);});},[client,signedIn,view]);
  useEffect(()=>{if(!notice)return;const id=setTimeout(()=>setNotice(''),2500);return()=>clearTimeout(id);},[notice]);
  useEffect(()=>{if(!drawer)return;const original=document.body.style.overflow;document.body.style.overflow='hidden';const close=(e:KeyboardEvent)=>{if(e.key==='Escape')setDrawer(false);};document.addEventListener('keydown',close);return()=>{document.body.style.overflow=original;document.removeEventListener('keydown',close);};},[drawer]);
- async function login(){if(!client){setError('Google sign-in is not available yet. This is a storefront preview.');return;}setBusy(true);setError('');const options={redirectTo:window.location.origin+window.location.pathname};const result=user?.is_anonymous?await client.auth.linkIdentity({provider:'google',options}):await client.auth.signInWithOAuth({provider:'google',options});if(result.error){setError('Google sign-in could not start. Please try again.');setBusy(false);}}
+ async function login(){if(!client){setError('Google sign-in is not available yet. This is a storefront preview.');return;}setBusy(true);setError('');if(user?.is_anonymous&&cart.length)sessionStorage.setItem('stark-pending-cart',JSON.stringify(cart));const options={redirectTo:window.location.origin+window.location.pathname};const result=await client.auth.signInWithOAuth({provider:'google',options});if(result.error){setError('Google sign-in could not start. Please try again.');setBusy(false);}}
  async function update(p:Product,quantity:number){if(cartBusy.current)return;quantity=Math.max(0,Math.min(20,quantity));cartBusy.current=true;setBusy(true);setError('');try{if(!preview){if(!client||!user)throw new Error('Your bag is still loading. Please try again.');const result=quantity?await client.from('cart_items').upsert({user_id:user.id,product_id:p.id,quantity},{onConflict:'user_id,product_id'}):await client.from('cart_items').delete().eq('user_id',user.id).eq('product_id',p.id);if(result.error)throw new Error('Your bag could not be saved. Please try again.');}
    setCart(items=>[...items.filter(i=>i.product_id!==p.id),...(quantity?[{product_id:p.id,quantity}]:[])]);if(quantity)setNotice(`${p.name} added to your bag`);
   }catch(e){setError(e instanceof Error?e.message:'Could not update your bag.');}finally{setBusy(false);cartBusy.current=false;}}
